@@ -1,0 +1,156 @@
+CREATE DATABASE Loan;
+USE Loan;
+
+-- Customers Table
+CREATE TABLE Customers (
+    customer_id INT PRIMARY KEY,
+    name VARCHAR(100),
+    contact_info VARCHAR(100),
+    income DECIMAL(15,2)
+);
+
+-- Loan Applications Table
+CREATE TABLE Loan_Applications (
+    application_id INT PRIMARY KEY,
+    customer_id INT,
+    loan_type VARCHAR(50),
+    loan_amount DECIMAL(15,2),
+    application_date DATE,
+    status VARCHAR(20), -- Pending, Approved, Rejected
+    FOREIGN KEY (customer_id) REFERENCES Customers(customer_id)
+);
+
+-- Sales Team Table
+CREATE TABLE Loan_Sales_Team (
+    employee_id INT PRIMARY KEY,
+    name VARCHAR(100),
+    territory VARCHAR(50)
+);
+
+-- Loan Approvals Table
+CREATE TABLE Loan_Approvals (
+    approval_id INT PRIMARY KEY,
+    application_id INT,
+    approved_amount DECIMAL(15,2),
+    interest_rate DECIMAL(5,2),
+    approved_date DATE,
+    FOREIGN KEY (application_id) REFERENCES Loan_Applications(application_id)
+);
+
+-- Payments Table
+CREATE TABLE Payments (
+    payment_id INT PRIMARY KEY,
+    application_id INT,
+    payment_date DATE,
+    amount_paid DECIMAL(15,2),
+    FOREIGN KEY (application_id) REFERENCES Loan_Applications(application_id)
+);
+
+-- Insert into Customers
+INSERT INTO Customers VALUES 
+(1, 'Sofia', 'Sofia26@gmail.com', 75000),
+(2, 'Shalini', 'Shalini99@gmail.com', 50000),
+(3, 'Moses', 'Moses01@gmail.com', 100000);
+
+-- Insert into Loan Applications
+INSERT INTO Loan_Applications VALUES 
+(101, 1, 'Home Loan', 40000, '2025-04-01', 'Pending'),
+(102, 2, 'Car Loan', 20000, '2025-04-05', 'Pending'),
+(103, 3, 'Personal Loan', 30000, '2025-04-10', 'Pending');
+
+-- Approve Loans where requested amount <= 80% of income
+SET SQL_SAFE_UPDATES = 0;
+
+UPDATE Loan_Applications la
+JOIN Customers c ON la.customer_id = c.customer_id
+SET la.status = CASE
+    WHEN la.loan_amount <= c.income * 0.8 THEN 'Approved'
+    ELSE 'Rejected'
+END
+WHERE la.status = 'Pending';
+
+
+
+
+-- View Approved Loans
+SELECT c.name, la.loan_type, la.loan_amount, la.status
+FROM Loan_Applications la
+JOIN Customers c ON la.customer_id = c.customer_id
+WHERE la.status = 'Approved';
+
+SELECT * FROM Loan_Applications WHERE status = 'Approved';
+
+SELECT la.application_id, p.payment_id 
+FROM Loan_Applications la
+LEFT JOIN Payments p ON la.application_id = p.application_id
+WHERE la.status = 'Approved';
+
+SELECT application_id, application_date
+FROM Loan_Applications
+WHERE status = 'Approved'
+  AND DATEDIFF(CURDATE(), application_date) > 30;
+
+SELECT application_id, application_date, DATEDIFF(CURDATE(), application_date) AS days_since_application
+FROM Loan_Applications
+WHERE status = 'Approved';
+
+
+-- Find Applications with No Payment after 30 days
+SELECT la.application_id, c.name, la.loan_amount, la.application_date
+FROM Loan_Applications la
+JOIN Customers c ON la.customer_id = c.customer_id
+LEFT JOIN Payments p ON la.application_id = p.application_id
+WHERE la.status = 'Approved'
+  AND p.payment_id IS NULL;
+  
+SELECT la.application_id, c.name, la.loan_amount, la.application_date
+FROM Loan_Applications la
+JOIN Customers c ON la.customer_id = c.customer_id
+LEFT JOIN Payments p ON la.application_id = p.application_id
+WHERE la.status = 'Approved'
+  AND p.payment_id IS NULL
+  AND DATEDIFF(CURDATE(), la.application_date) > 7;
+
+
+
+-- Sales Team Performance Report
+SELECT lst.name AS Sales_Rep, COUNT(la.application_id) AS Loans_Closed
+FROM Loan_Sales_Team lst
+LEFT JOIN Loan_Applications la ON lst.employee_id = la.assigned_employee_id
+  AND la.status = 'Approved' -- moved this condition into the join
+GROUP BY lst.name;
+
+
+ALTER TABLE Loan_Applications
+ADD assigned_employee_id INT,
+ADD FOREIGN KEY (assigned_employee_id) REFERENCES Loan_Sales_Team(employee_id);
+
+
+
+INSERT INTO Loan_Sales_Team (employee_id, name, territory) VALUES
+(1, 'Dinesh', 'North Zone'),
+(2, 'Sarath', 'South Zone');
+
+SELECT * FROM Loan_Sales_Team;
+
+DELETE FROM Loan_Sales_Team WHERE employee_id = 1; -- Deletes the duplicate entry for employee_id = 1
+DELETE FROM Loan_Sales_Team WHERE employee_id = 2; -- Deletes the duplicate entry for employee_id = 2
+
+INSERT INTO Loan_Sales_Team (employee_id, name, territory) 
+VALUES (3, 'Venkatesh', 'East Zone'), (4, 'Ravi', 'West Zone');
+
+
+UPDATE Loan_Sales_Team
+SET name = CASE 
+    WHEN employee_id = 1 THEN 'Dinesh'
+    WHEN employee_id = 2 THEN 'Sarath'
+    ELSE name
+END,
+territory = CASE
+    WHEN employee_id = 1 THEN 'North Zone'
+    WHEN employee_id = 2 THEN 'South Zone'
+    ELSE territory
+END
+WHERE employee_id IN (1, 2);
+
+
